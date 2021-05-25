@@ -1,20 +1,19 @@
 # external requirements
-tensorflow==2.2.0-rc3
 click
 Sphinx
 coverage
 flake8
 python-dotenv
-tensorflow==2.2.0-rc3
+tensorflow>=2.2.0-rc3
 pandas
 numpy
 tqdm
 sklearn
 nltk
-transformers==2.8.0
+transformers>=2.8.0
 pytorch-lightning
 wandb
-tokenizers==0.8.1
+tokenizers>=0.8.1
 scikit-learn
 scipy
 allennlp
