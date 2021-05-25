@@ -9,30 +9,28 @@ We publish the datasets (publicly available) and the experimental setup used for
 	$ pip install -r requirements.txt
 
 ### Commands to run
-	
-	$ cd experiments
 
-#### Sentiment analysis
+#### Sentiment Analysis
 
-	$ python experiments_hindi_sentiment.py \
+	$ cd experiments && python experiments_hindi_sentiment.py \
 			--train_data ../data/hindi_sentiment/IIITH_Codemixed.txt \
 			--model_save_path ../models/model_hindi_sentiment/
 
-#### POS
+#### PoS (Parts-of-Speech) Tagging 
 
-	$ python experiments_hindi_POS.py \
+	$ cd experiments && python experiments_hindi_POS.py \
 			--train_data '../data/POS Hindi English Code Mixed Tweets/POS Hindi English Code Mixed Tweets.tsv' \
 			--model_save_path ../models/model_hindi_pos/
 
-#### NER
+#### Named Entity Recognition (NER)
 
-    $ python experiments_hindi_NER.py\
+    $ cd experiments && python experiments_hindi_NER.py\
     		--train_data '../data/NER/NER Hindi English Code Mixed Tweets.tsv' \
 			--model_save_path ../models/model_hindi_NER/
 
-#### MT
+#### Machine Translation (MT)
 
-	$ python nmt.py \
+	$ cd experiments && python nmt.py \
 			--data_path '../data/IITPatna-CodeMixedMT' \
 			--model_save_path ../models/model_hindi_NMT/
 
