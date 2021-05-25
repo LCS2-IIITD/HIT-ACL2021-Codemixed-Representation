@@ -44,7 +44,7 @@ If you find this repo useful, please cite our paper:
                Sourabh Kumar Bhattacharjee and
                Tanmoy Chakraborty and
                Md. Shad Akhtar},
-  title     = {HIT: A Hierarchically Fused Deep Attention Network for RobustCode-mixed Language Representation},
+  title     = {HIT: A Hierarchically Fused Deep Attention Network for Robust Code-mixed Language Representation},
   booktitle = {Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics},
   publisher = {Association for Computational Linguistics},
   year      = {2021},
