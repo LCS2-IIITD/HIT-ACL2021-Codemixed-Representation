@@ -1,6 +1,6 @@
 This repository contains the source code for HIT (Hierarchical Transformer). Hierarchical Transformer uses Fused Attention Mechanism (FAME) for learning representation learning from code-mixed texts. We evaluate HIT on sequence classification, token classification and generative tasks.
 
-![HIT](https://github.com/LCS2-IIITD/HIT-ACL2021-Codemixed-Representation/blob/main/image/model.pdf)
+![HIT](https://github.com/LCS2-IIITD/HIT-ACL2021-Codemixed-Representation/blob/main/image/model.png)
 
 We publish the datasets (publicly available) and the experimental setup used for different tasks.
 
