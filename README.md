@@ -36,7 +36,7 @@ We publish the datasets (publicly available) and the experimental setup used for
 
 ### Citation
 If you find this repo useful, please cite our paper:
-
+```BibTex
 @inproceedings{,
   author    = {Ayan Sengupta and
                Sourabh Kumar Bhattacharjee and
@@ -49,4 +49,4 @@ If you find this repo useful, please cite our paper:
   url       = {},
   doi       = {},
 }
-
+```
