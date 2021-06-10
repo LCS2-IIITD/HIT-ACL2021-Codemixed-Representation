@@ -220,7 +220,7 @@ transformer_test_inputs, _, _ = data.data_utils.compute_transformer_input_arrays
 word_test_inputs = word_tokenizer.texts_to_sequences(test_df.text.values)
 word_test_inputs = tf.keras.preprocessing.sequence.pad_sequences(word_test_inputs, maxlen=args.max_text_len)
 
-subword_test_inputs = np.asarray([data.data_utils.subword_tokenization(text, char_tokenizer, args.max_text_len, args.max_word_char_len\
+subword_test_inputs = np.asarray([data.data_utils.subword_tokenization(text, char_tokenizer, args.max_text_len, args.max_word_char_len)
                          for text in tqdm(test_df.text.values)])
 
 char_test_inputs = char_tokenizer.texts_to_sequences(test_df.text.values)
