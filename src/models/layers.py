@@ -236,13 +236,10 @@ class MultiHeadSelfAttention(layers.Layer):
         self.value_dense = layers.Dense(embed_dim)
         self.combine_heads = layers.Dense(embed_dim)
 
-    def attention(self, query, key, value, mask):
+    def attention(self, query, key, value):
         score = tf.matmul(query, key, transpose_b=True)
         dim_key = tf.cast(tf.shape(key)[-1], tf.float32)
         scaled_score = score / tf.math.sqrt(dim_key)
-        if mask is not None:
-            scaled_score += (mask * -1e9) 
-
         weights = tf.nn.softmax(scaled_score, axis=-1)
         output = tf.matmul(weights, value)
         return output, weights
@@ -251,12 +248,12 @@ class MultiHeadSelfAttention(layers.Layer):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.projection_dim))
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
-    def call(self, q,k,v, mask):
+    def call(self, inputs):
         # x.shape = [batch_size, seq_len, embedding_dim]
-        batch_size = tf.shape(q)[0]
-        query = self.query_dense(q)  # (batch_size, seq_len, embed_dim)
-        key = self.key_dense(k)  # (batch_size, seq_len, embed_dim)
-        value = self.value_dense(v)  # (batch_size, seq_len, embed_dim)
+        batch_size = tf.shape(inputs)[0]
+        query = self.query_dense(inputs)  # (batch_size, seq_len, embed_dim)
+        key = self.key_dense(inputs)  # (batch_size, seq_len, embed_dim)
+        value = self.value_dense(inputs)  # (batch_size, seq_len, embed_dim)
         query = self.separate_heads(
             query, batch_size
         )  # (batch_size, num_heads, seq_len, projection_dim)
@@ -266,7 +263,7 @@ class MultiHeadSelfAttention(layers.Layer):
         value = self.separate_heads(
             value, batch_size
         )  # (batch_size, num_heads, seq_len, projection_dim)
-        attention, weights = self.attention(query, key, value, mask)
+        attention, weights = self.attention(query, key, value)
         attention = tf.transpose(
             attention, perm=[0, 2, 1, 3]
         )  # (batch_size, seq_len, num_heads, projection_dim)
@@ -290,24 +287,20 @@ class OuterProductMHSA(layers.Layer):
         self.key_dense = layers.Dense(embed_dim)
         self.value_dense = layers.Dense(embed_dim)
 
-    def outer_product_attention(self, query, key, value, mask):
-        score = tf.einsum('bnd,bmd->bdnm', query, key)
-        if mask is not None:
-            score += (mask * -1e9) 
-
-        #weights = tf.nn.softmax(score, axis=-1)
-        weights = tf.nn.tanh(score)
-        output = tf.einsum('bdnm,bmd->bnd', weights, value)
+    def outer_product_attention(self, query, key, value):
+        score = tf.einsum('bnd,bmd->bnmd', query, key)
+        weights = tf.nn.softmax(score, axis=2)
+        output = tf.einsum('bnmd,bmd->bnd', weights, value)
         return output, weights
 
-    def call(self, q, k, v, mask):
+    def call(self, inputs):
         # x.shape = [batch_size, seq_len, embedding_dim]
-        batch_size = tf.shape(q)[0]
-        query = self.query_dense(q)  # (batch_size, seq_len, embed_dim)
-        key = self.key_dense(k)  # (batch_size, seq_len, embed_dim)
-        value = self.value_dense(v)  # (batch_size, seq_len, embed_dim)
+        batch_size = tf.shape(inputs)[0]
+        query = self.query_dense(inputs)  # (batch_size, seq_len, embed_dim)
+        key = self.key_dense(inputs)  # (batch_size, seq_len, embed_dim)
+        value = self.value_dense(inputs)  # (batch_size, seq_len, embed_dim)
 
-        attention, weights = self.outer_product_attention(query, key, value, mask)
+        attention, weights = self.outer_product_attention(query, key, value)
         
         return attention
     
@@ -335,12 +328,12 @@ class TransformerBlock(layers.Layer):
         self.dropout1 = layers.Dropout(rate)
         self.dropout2 = layers.Dropout(rate)
 
-    def call(self, inputs, training, mask):
+    def call(self, inputs, training):
         if self.outer_attention == False:
-            attn_output = self.att(inputs,inputs,inputs,mask)
+            attn_output = self.att(inputs)
         else:
-            mha_attn = self.att2(inputs,inputs,inputs, mask)
-            outer_attn = self.att1(inputs,inputs,inputs, mask)
+            mha_attn = self.att2(inputs)
+            outer_attn = self.att1(inputs)
             weights_mha = tf.nn.sigmoid(self.attn_weights1(mha_attn))
             weights_outer = tf.nn.sigmoid(self.attn_weights2(outer_attn))
             weights = tf.nn.softmax(tf.keras.layers.Concatenate()([weights_mha,weights_outer]), axis=-1)
@@ -355,76 +348,6 @@ class TransformerBlock(layers.Layer):
         ffn_output = self.ffn(out1)
         ffn_output = self.dropout2(ffn_output, training=training)
         return self.layernorm2(out1 + ffn_output)
-    
-    def compute_output_shape(self, input_shape):
-        return input_shape[0], input_shape[1], self.embed_dim
-
-class TransformerDecoderBlock(layers.Layer):
-    def __init__(self, embed_dim, num_heads, ff_dim, outer_attention=False, rate=0.1):
-        super(TransformerDecoderBlock, self).__init__()
-        self.embed_dim = embed_dim
-        self.outer_attention = outer_attention
-        if outer_attention == False:
-            self.att1 = MultiHeadSelfAttention(embed_dim, num_heads)
-            self.att2 = MultiHeadSelfAttention(embed_dim, num_heads)
-        else:
-            self.att1 = OuterProductMHSA(embed_dim)
-            self.att2 = MultiHeadSelfAttention(embed_dim, num_heads)
-            self.att3 = OuterProductMHSA(embed_dim)
-            self.att4 = MultiHeadSelfAttention(embed_dim, num_heads)
-            self.attn_weights1 = layers.Dense(1)
-            self.attn_weights2 = layers.Dense(1)
-            self.attn_weights3 = layers.Dense(1)
-            self.attn_weights4 = layers.Dense(1)
-
-        self.ffn = keras.Sequential(
-            [layers.Dense(ff_dim, activation="relu"), layers.Dense(embed_dim),]
-        )
-        self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm3 = layers.LayerNormalization(epsilon=1e-6)
-        self.dropout1 = layers.Dropout(rate)
-        self.dropout2 = layers.Dropout(rate)
-        self.dropout3 = layers.Dropout(rate)
-
-    def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
-        if self.outer_attention == False:
-            attn_output = self.att1(inputs,inputs,inputs,look_ahead_mask)
-        else:
-            mha_attn = self.att2(inputs,inputs,inputs, look_ahead_mask)
-            outer_attn = self.att1(inputs,inputs,inputs, look_ahead_mask)
-            weights_mha = tf.nn.sigmoid(self.attn_weights1(mha_attn))
-            weights_outer = tf.nn.sigmoid(self.attn_weights2(outer_attn))
-            weights = tf.nn.softmax(tf.keras.layers.Concatenate()([weights_mha,weights_outer]), axis=-1)
-
-            #weights_mha = weights_mha/(weights_mha+weights_outer)
-            
-            attn_output = weights[:,:,0:1]*mha_attn + weights[:,:,1:2]*outer_attn
-            #attn_output = tf.matmul(weights, tf.keras.layers.Concatenate()([mha_attn,outer_attn]))
-
-        attn_output1 = self.dropout1(attn_output, training=training)
-        out1 = self.layernorm1(inputs + attn_output1)
-
-        if self.outer_attention == False:
-            attn_output = self.att2(enc_output,enc_output,out1,padding_mask)
-        else:
-            mha_attn = self.att4(enc_output,enc_output,out1,padding_mask)
-            outer_attn = self.att2(enc_output,enc_output,out1,padding_mask)
-            weights_mha = tf.nn.sigmoid(self.attn_weights3(mha_attn))
-            weights_outer = tf.nn.sigmoid(self.attn_weights4(outer_attn))
-            weights = tf.nn.softmax(tf.keras.layers.Concatenate()([weights_mha,weights_outer]), axis=-1)
-
-            #weights_mha = weights_mha/(weights_mha+weights_outer)
-            
-            attn_output = weights[:,:,0:1]*mha_attn + weights[:,:,1:2]*outer_attn
-            #attn_output = tf.matmul(weights, tf.keras.layers.Concatenate()([mha_attn,outer_attn]))
-
-        attn_output2 = self.dropout2(attn_output, training=training)
-        out2 = self.layernorm2(out1 + attn_output2)
-
-        ffn_output = self.ffn(out2)
-        ffn_output = self.dropout3(ffn_output, training=training)
-        return self.layernorm3(out2 + ffn_output)
     
     def compute_output_shape(self, input_shape):
         return input_shape[0], input_shape[1], self.embed_dim
