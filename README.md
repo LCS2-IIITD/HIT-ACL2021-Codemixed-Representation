@@ -48,6 +48,10 @@ For sentiment classification, PoS and NER classification we use macro precision,
 
 The below table can be reproduced by using only the macro score.
 
+| Model      | Macro-Precision | Macro-Recall     | Macro-F1      |
+| :---        |    :----:   |          ---: |   ---: |
+| Header      | Title       | Here's this   | |
+| Paragraph   | Text        | And more      ||
 
 ### Citation
 If you find this repo useful, please cite our paper:
