@@ -46,7 +46,7 @@ import tokenizers
 from transformers import TFAutoModel, AutoTokenizer, AutoConfig, BertTokenizer
 
 from sklearn.model_selection import train_test_split, KFold
-from sklearn.metrics import classification_report, f1_score, accuracy_score, confusion_matrix
+from sklearn.metrics import classification_report, f1_score, accuracy_score, confusion_matrix, precision_score, recall_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from src import data, models
@@ -270,7 +270,7 @@ if os.path.exists(os.path.join(args.model_save_path,'results.csv')):
   index = results.shape[0]
   print (results)
 else:
-  results = pd.DataFrame(columns=['config','weighted_f1','macro_f1'])
+  results = pd.DataFrame(columns=['config','weighted_f1','macro_f1','micro_f1','weighted_precision','macro_precision','micro_precision','weighted_recall','macro_recall','micro_recall'])
   index = 0
 
 for model_name, model_ in all_models.items():
@@ -350,11 +350,24 @@ for model_name, model_ in all_models.items():
             print (report, f1)
             
             results.loc[index,'config'] = str(config)
-            results.loc[index, 'weighted_f1'] = f1_score([idx2label[i] for i in test_outputs.argmax(-1)],\
-                                                        [idx2label[i] for i in test_pred.argmax(-1)], average='weighted')
-            results.loc[index, 'macro_f1'] = f1_score([idx2label[i] for i in test_outputs.argmax(-1)],\
-                                                        [idx2label[i] for i in test_pred.argmax(-1)], average='macro')
-            
+            results.loc[index, 'weighted_f1'] = f1_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='weighted')
+            results.loc[index, 'macro_f1'] = f1_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='macro')
+            results.loc[index, 'micro_f1'] = f1_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                        [idx2label[i] for i in test_pred.argmax(-1)], average='micro')
+            results.loc[index, 'weighted_precision'] = precision_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='weighted')
+            results.loc[index, 'macro_precision'] = precision_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='macro')
+            results.loc[index, 'micro_precision'] = precision_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='micro')
+            results.loc[index, 'weighted_recall'] = recall_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='weighted')
+            results.loc[index, 'macro_recall'] = recall_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='macro')
+            results.loc[index, 'micro_recall'] = recall_score([idx2label[i] for i in test_outputs.argmax(-1)], \
+                                          [idx2label[i] for i in test_pred.argmax(-1)], average='micro')
             index += 1
 
             results.to_csv(os.path.join(args.model_save_path,'results.csv'),index=False)

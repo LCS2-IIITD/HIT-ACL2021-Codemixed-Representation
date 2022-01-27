@@ -192,6 +192,61 @@ def HAN(word_vocab_size, char_vocab_size, wpe_vocab_size, n_out, seq_output=Fals
 
     return model
 
+def HAN_with_word(word_vocab_size, char_vocab_size, wpe_vocab_size, n_out, seq_output=False, vectorizer_shape=None, \
+        max_word_char_len=20, max_text_len=20, max_char_len=100, n_layers=2, n_units=128, emb_dim=128):
+    
+    char_inputs = tf.keras.layers.Input((max_word_char_len,), dtype=tf.int32)
+    emb = tf.keras.layers.Embedding(char_vocab_size, emb_dim, input_length = max_word_char_len)(char_inputs)
+    
+    lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(n_units, dropout=0.2, return_sequences=True))(emb)
+    for i in range(n_layers-1):
+        lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(n_units, dropout=0.2, return_sequences=True))(lstm)
+
+    dense = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_units))(lstm)
+    dense = AttentionWithContext(name='char_attention')(dense)
+    
+    char_model = tf.keras.models.Model(char_inputs, dense)
+    
+    word_inputs = tf.keras.layers.Input((max_text_len,), dtype=tf.int32)
+    char_inputs = tf.keras.layers.Input((max_char_len,), dtype=tf.int32)
+    subword_inputs = tf.keras.layers.Input((max_text_len,max_word_char_len,), dtype=tf.int32)
+    wpe_inputs = tf.keras.layers.Input((max_char_len,), dtype=tf.int32)
+
+    word_encoder = tf.keras.layers.TimeDistributed(char_model)(subword_inputs)
+    
+    emb_word = tf.keras.layers.Embedding(word_vocab_size, emb_dim, input_length = max_text_len)(word_inputs)
+
+    #word_embedding = tf.keras.layers.Embedding(word_vocab_size, emb_dim, input_length = max_text_len)(word_inputs)
+
+    #word_encoder = word_encoder + word_embedding
+
+    lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(n_units, dropout=0.2, return_sequences=True))(word_encoder+emb_word)
+    for i in range(n_layers-1):
+        lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(n_units, dropout=0.2, return_sequences=True))(lstm)
+
+    dense = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_units))(lstm)
+    
+    if seq_output == False:
+        dense = AttentionWithContext(name='word_attention')(dense)
+    else:
+        dense = Attention(n_units,name='word_attention')(dense)
+    
+    if vectorizer_shape:
+        tfidf = tf.keras.layers.Input((vectorizer_shape,))
+        dense = tf.keras.layers.Dense(n_units)(tf.keras.layers.Concatenate()([dense, tfidf]))
+    else:
+        dense = tf.keras.layers.Dense(n_units)(dense)
+    dense = tf.keras.layers.Dropout(.2)(dense)
+    
+    out = tf.keras.layers.Dense(n_out, activation='softmax')(dense)
+    
+    if vectorizer_shape:
+        model = tf.keras.models.Model([word_inputs,char_inputs,subword_inputs,wpe_inputs,tfidf], out)
+    else:
+        model = tf.keras.models.Model([word_inputs,char_inputs,subword_inputs,wpe_inputs], out)
+
+    return model
+
 def CS_ELMO(word_vocab_size, char_vocab_size, wpe_vocab_size, n_out, seq_output=False, vectorizer_shape=None, \
             max_word_char_len=20, max_text_len=20, max_char_len=100, n_layers=2, n_units=128, emb_dim=128):
 

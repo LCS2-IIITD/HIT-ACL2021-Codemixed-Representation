@@ -66,7 +66,7 @@ from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import classification_report, f1_score, accuracy_score, confusion_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from sklearn_crfsuite.metrics import flat_classification_report, flat_f1_score
+from sklearn_crfsuite.metrics import flat_classification_report, flat_f1_score, flat_precision_score, flat_recall_score
 
 from src import data, models
 
@@ -321,27 +321,30 @@ all_models = {HIT_outer.__name__:HIT_outer,HIT.__name__: HIT}
 if os.path.exists(os.path.join(args.model_save_path,'results.csv')):
   results = pd.read_csv(os.path.join(args.model_save_path,'results.csv'))
   index = results.shape[0]
-  print (results)
+  #print (results)
 else:
-  results = pd.DataFrame(columns=['config','weighted_f1','macro_f1'])
+  results = pd.DataFrame(columns=['config','weighted_f1','macro_f1','micro_f1','weighted_precision','macro_precision','micro_precision','weighted_recall','macro_recall','micro_recall'])
   index = 0
 
 for model_name, model_ in all_models.items():
     
-    for loss in ['ce','focal']:
+    for loss in ['ce']:
         
-        model = model_(word_vocab_size=n_words,char_vocab_size=n_chars, wpe_vocab_size=n_subwords, n_out=n_out,seq_output=True,max_word_char_len=args.max_word_char_len,                                          max_text_len=args.max_text_len, max_char_len=args.max_char_len,                                          n_layers=args.n_layers, n_units=args.n_units, emb_dim=args.emb_dim)
+        model = model_(word_vocab_size=n_words,char_vocab_size=n_chars, wpe_vocab_size=n_subwords, n_out=n_out,seq_output=True,max_word_char_len=args.max_word_char_len,\
+                                          max_text_len=args.max_text_len, max_char_len=args.max_char_len,\
+                                          n_layers=1, n_units=args.n_units, emb_dim=args.emb_dim) #bert_model_name='google/muril-base-cased'
         
         print ("Running {} without features for {} loss".format(model_name, loss))
 
-        print (model.summary())
+        #print (model.summary())
 
         if loss == 'focal':
-            model.compile(loss=models.utils.categorical_focal_loss(alpha=1), optimizer='adam', metrics=['accuracy', models.utils.f1_keras]) #binary_crossentropy
+            model.compile(loss=models.utils.categorical_focal_loss(alpha=1), optimizer=tf.keras.optimizers.Adam(learning_rate=args.lr), metrics=['accuracy', models.utils.f1_keras]) #binary_crossentropy
         elif loss == 'ce':
-            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', models.utils.f1_keras]) 
+            model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(learning_rate=args.lr), metrics=['accuracy', models.utils.f1_keras]) 
 
-        lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.7,                                               patience=args.lr_schedule_round, verbose=1, mode='auto', min_lr=0.000001)
+        lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.7, \
+                                              patience=args.lr_schedule_round, verbose=1, mode='auto', min_lr=0.000001)
         config = {
               'text_max_len': args.max_text_len,
               'char_max_len': args.max_char_len,
@@ -358,81 +361,141 @@ for model_name, model_ in all_models.items():
 
         model_save_path = os.path.join(args.model_save_path, '{}_{}.h5'.format(model_name, config['loss']))
 
-        if model_name != 'Transformer':
-          f1callback = models.utils.SeqF1Callback(model, [word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs, val_tfidf],                                      val_outputs,                                       filename=model_save_path,                                       patience=args.early_stopping_rounds)
+        if model_name != 'Transformer' and model_name != 'BERT':
+          f1callback = models.utils.SeqF1Callback(model, [word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs],\
+                                      val_outputs, \
+                                      filename=model_save_path, \
+                                      patience=args.early_stopping_rounds)
 
           K.clear_session()
           
-          
           if _has_wandb and args.wandb_logging:
               wandb.init(project='hindi_ner',config=config)
-              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs, train_tfidf], train_outputs, \
-                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs, val_tfidf], val_outputs), \
+              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs], train_outputs, \
+                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs], val_outputs), \
                         epochs=args.epochs,batch_size=args.train_batch_size, callbacks=[lr, f1callback, WandbCallback()], verbose=2)
           else:
-              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs, train_tfidf], train_outputs, \
-                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs, val_tfidf], val_outputs), \
+              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs], train_outputs, \
+                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs], val_outputs), \
                         epochs=args.epochs,batch_size=args.train_batch_size, callbacks=[lr, f1callback], verbose=2)
           
 
-          model.load_weights(model_save_path)
+          try:
+            model_save_path = os.path.join(args.model_save_path, '{}_{}.h5'.format(model_name, config['loss']))
 
-          model.load_weights(model_save_path)
+            model.load_weights(model_save_path)
 
-          test_pred = model.predict([word_test_inputs, char_test_inputs, subword_test_inputs, transformer_test_inputs, test_tfidf])
+            test_pred = model.predict([word_test_inputs, char_test_inputs, subword_test_inputs, transformer_test_inputs])
+            test_pred = test_pred[:,:,1:]
 
-          test_pred = model.predict([word_test_inputs, char_test_inputs, subword_test_inputs, transformer_test_inputs])
+            report = flat_classification_report([[idx2label[j] for j in i] for i in test_outputs[:,:,1:].argmax(-1)], \
+                                              [[idx2label[j] for j in i] for i in test_pred.argmax(-1)])
 
-          test_pred = test_pred[:,:,1:]
+            f1 = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
 
-          report = flat_classification_report([[idx2label[j] for j in i] for i in test_outputs[:,:,1:].argmax(-1)], \
-                                            [[idx2label[j] for j in i] for i in test_pred.argmax(-1)])
+            results.loc[index,'config'] = str(config)
+            results.loc[index, 'weighted_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+            results.loc[index, 'macro_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+            results.loc[index, 'micro_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+            results.loc[index, 'weighted_precision'] = flat_precision_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+            results.loc[index, 'macro_precision'] = flat_precision_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+            results.loc[index, 'micro_precision'] = flat_precision_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+            results.loc[index, 'weighted_recall'] = flat_recall_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+            results.loc[index, 'macro_recall'] = flat_recall_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+            results.loc[index, 'micro_recall'] = flat_recall_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
 
-          f1 = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
 
-          results.loc[index,'config'] = str(config)
-          results.loc[index, 'weighted_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
-          results.loc[index, 'macro_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+            index += 1
 
-          results.to_csv(os.path.join(args.model_save_path,'results.csv'),index=False)
+            print (report, f1)
+
+            results.to_csv(os.path.join(args.model_save_path,'results.csv'),index=False)
+
+            print (results)
+          except:
+            try:
+              model = model_(word_vocab_size=n_words,char_vocab_size=n_chars, wpe_vocab_size=n_subwords, n_out=n_out,seq_output=True,max_word_char_len=args.max_word_char_len,\
+                                          max_text_len=args.max_text_len, max_char_len=args.max_char_len,\
+                                          n_layers=args.n_layers, n_units=args.n_units, emb_dim=args.emb_dim)
+              
+              model_save_path = os.path.join(args.model_save_path, '{}_{}.h5'.format(model_name, config['loss']))
+            
+              model.load_weights(model_save_path)
+
+              test_pred = model.predict([word_test_inputs, char_test_inputs, subword_test_inputs, transformer_test_inputs])
+              test_pred = test_pred[:,:,1:]
+
+              report = flat_classification_report([[idx2label[j] for j in i] for i in test_outputs[:,:,1:].argmax(-1)], \
+                                                [[idx2label[j] for j in i] for i in test_pred.argmax(-1)])
+
+              f1 = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+
+              results.loc[index,'config'] = str(config)
+              results.loc[index, 'weighted_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+              results.loc[index, 'macro_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+              results.loc[index, 'micro_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+              results.loc[index, 'weighted_precision'] = flat_precision_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+              results.loc[index, 'macro_precision'] = flat_precision_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+              results.loc[index, 'micro_precision'] = flat_precision_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+              results.loc[index, 'weighted_recall'] = flat_recall_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+              results.loc[index, 'macro_recall'] = flat_recall_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+              results.loc[index, 'micro_recall'] = flat_recall_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+
+              index += 1
+
+              print (report, f1)
+
+              results.to_csv(os.path.join(args.model_save_path,'results.csv'),index=False)
+
+              print (results)
+
+            except:
+              pass
 
         else:
-          f1callback = models.utils.SeqF1Callback(model, [word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs, val_tfidf],                                      val_outputs2,                                       filename=model_save_path,                                       patience=args.early_stopping_rounds)
+          f1callback = models.utils.SeqF1Callback(model, [word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs],\
+                                      val_outputs2, \
+                                      filename=model_save_path, \
+                                      patience=args.early_stopping_rounds)
 
           K.clear_session()
-          
-          
+
           if _has_wandb and args.wandb_logging:
               wandb.init(project='hindi_ner',config=config)
-              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs, train_tfidf], train_outputs2, \
-                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs, val_tfidf], val_outputs2), \
+              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs], train_outputs2, \
+                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs], val_outputs2), \
                         epochs=args.epochs,batch_size=args.train_batch_size, callbacks=[lr, f1callback, WandbCallback()], verbose=2)
           else:
-              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs, train_tfidf], train_outputs2, \
-                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs, val_tfidf], val_outputs2), \
+              model.fit([word_train_inputs, char_train_inputs, subword_train_inputs, transformer_train_inputs], train_outputs2, \
+                    validation_data=([word_val_inputs, char_val_inputs, subword_val_inputs, transformer_val_inputs], val_outputs2), \
                         epochs=args.epochs,batch_size=args.train_batch_size, callbacks=[lr, f1callback], verbose=2)
-          
+
 
           model.load_weights(model_save_path)
 
-          test_pred = model.predict([word_test_inputs, char_test_inputs, subword_test_inputs, transformer_test_inputs, test_tfidf])
-
           test_pred = model.predict([word_test_inputs, char_test_inputs, subword_test_inputs, transformer_test_inputs])
-
           test_pred = test_pred[:,:,1:]
 
-          report = flat_classification_report([[idx2label[j] for j in i] for i in test_outputs[:,:,1:].argmax(-1)], \
+          report = flat_classification_report([[idx2label[j] for j in i] for i in test_outputs2[:,:,1:].argmax(-1)], \
                                             [[idx2label[j] for j in i] for i in test_pred.argmax(-1)])
 
-          f1 = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+          f1 = flat_f1_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
 
           results.loc[index,'config'] = str(config)
-          results.loc[index, 'weighted_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
-          results.loc[index, 'macro_f1'] = flat_f1_score(test_outputs[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
-        
+          results.loc[index, 'weighted_f1'] = flat_f1_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+          results.loc[index, 'macro_f1'] = flat_f1_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+          results.loc[index, 'micro_f1'] = flat_f1_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+          results.loc[index, 'weighted_precision'] = flat_precision_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+          results.loc[index, 'macro_precision'] = flat_precision_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+          results.loc[index, 'micro_precision'] = flat_precision_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+          results.loc[index, 'weighted_recall'] = flat_recall_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='weighted')
+          results.loc[index, 'macro_recall'] = flat_recall_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='macro')
+          results.loc[index, 'micro_recall'] = flat_recall_score(test_outputs2[:,:,1:].argmax(-1), test_pred.argmax(-1), average='micro')
+
+          index += 1
+
+          print (report, f1)
+
           results.to_csv(os.path.join(args.model_save_path,'results.csv'),index=False)
 
-        index += 1
-
-        print (report, f1)
-
+          print (results)
