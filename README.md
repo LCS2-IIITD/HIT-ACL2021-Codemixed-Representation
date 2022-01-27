@@ -40,15 +40,16 @@ We publish the datasets (publicly available) and the experimental setup used for
 
 For sentiment classification, PoS and NER classification we use macro precision, recall and F1 score to evaluate the models. For machine translation task we use BLEU, ROGUE-L and METEOR scores. To accommodate class imbalance we use weighted precision for hindi sentiment classification task.
 
-$$macro-precision = \sum_{i=1}^{C}pr_{i}$$
+$macro-precision = \sum_{i=1}^{C}pr_{i}$
 
-$$macro-recall = \sum_{i=1}^{C}re_{i}$$
+$macro-recall = \sum_{i=1}^{C}re_{i}$
 
-$$macro-F1 = \sum_{i=1}^{C}\frac{2*pr_{i}*re_{i}}{(pr_{i} + re_{i})}$$
+$macro-F1 = \sum_{i=1}^{C}\frac{2*pr_{i}*re_{i}}{(pr_{i} + re_{i})}$
+
+	- $\bar a$
 
 The below table can be reproduced by using only the macro score.
 
-$$\small \text{Font size is small, eg. $\sum{x_i = 10}$}$$
 
 ### Citation
 If you find this repo useful, please cite our paper:
