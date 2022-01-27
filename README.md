@@ -48,6 +48,7 @@ $$macro-F1 = \sum_{i=1}^{C}\frac{2*pr_{i}*re_{i}}{(pr_{i} + re_{i})}$$
 
 The below table can be reproduced by using only the macro score.
 
+$$\small \text{Font size is small, eg. $\sum{x_i = 10}$}$$
 
 ### Citation
 If you find this repo useful, please cite our paper:
