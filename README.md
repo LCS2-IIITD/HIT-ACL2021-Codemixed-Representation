@@ -50,11 +50,11 @@ The below table can be reproduced by using only the macro score.
 
 | Model      | Macro-Precision | Macro-Recall     | Macro-F1      |
 | :---        |    :----:   |          ---: |   ---: |
-| BiLSTM      |        | 0.901  | 0.909|
-| HAN   |       |  0.906    |0.905|
-| CS-ELMO | |0.903|0.909|
-| ML-BERT | |0.914|0.909|
-| HIT | |0.914|0.915|
+| BiLSTM      |     0.894   | 0.901  | 0.909|
+| HAN   |      0.889 |  0.906    |0.905|
+| CS-ELMO | 0.901 |0.903|0.909|
+| ML-BERT | 0.917 |0.914|0.909|
+| HIT | 0.926 |0.914|0.915|
 
 ### Citation
 If you find this repo useful, please cite our paper:
