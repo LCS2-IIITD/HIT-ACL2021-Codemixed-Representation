@@ -46,6 +46,8 @@ For sentiment classification, PoS and NER classification we use macro precision,
 
 	$macro-F1 = \sum_{i=1}^{C}\frac{2*pr_{i}*re_{i}}{(pr_{i} + re_{i})}$
 
+$pr_{i}$ and $re_{i}$ are the precision and recall for class $i$, respectively. 
+
 The below table can be reproduced by using only the macro score.
 
 | Model      | Macro-Precision | Macro-Recall     | Macro-F1      |
